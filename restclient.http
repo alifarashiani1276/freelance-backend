@@ -1,0 +1,33 @@
+### Get OTP
+POST http://localhost:5000/api/user/get-otp
+Content-Type: application/json
+
+{
+    "phoneNumber":"09123456788"
+}
+
+
+### Check OTP
+POST http://localhost:5000/api/user/check-otp
+Content-Type: application/json
+
+{
+    "phoneNumber":"09123456788",
+    "otp":"970526"
+}
+
+### Get OTP
+POST http://localhost:5000/api/user/get-otp
+Content-Type: application/json
+
+{
+    "phoneNumber":"091234567444"
+}
+
+### Get OTP
+POST http://localhost:5000/api/user/get-otp
+Content-Type: application/json
+
+{
+    "phoneNumber":"091234569988"
+}
