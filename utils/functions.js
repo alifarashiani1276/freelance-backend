@@ -24,35 +24,44 @@ function toPersianDigits(n) {
   return n.toString().replace(/\d/g, (x) => farsiDigits[parseInt(x)]);
 }
 
-async function setAccessToken(res, user) {
-  const cookieOptions = {
-    maxAge: 1000 * 60 * 60 * 24 * 1, // would expire after 1 days
+function buildAuthCookieOptions(maxAge) {
+  const isProd = process.env.NODE_ENV !== "development";
+  const options = {
+    maxAge,
     httpOnly: true, // The cookie only accessible by the web server
     signed: true, // Indicates if the cookie should be signed
-    sameSite: "Lax",
-    secure: process.env.NODE_ENV === "development" ? false : true,
-    domain: process.env.DOMAIN,
+    // Frontend and backend live on different domains (e.g. karjoo-web.liara.run
+    // vs karjoo-api.liara.run), so the cookie must be SameSite=None + Secure
+    // to be sent on cross-site requests. "Lax" only works when both are on
+    // the same site.
+    sameSite: isProd ? "None" : "Lax",
+    secure: isProd,
   };
+  // Only set an explicit cookie `domain` if one is configured AND it's not
+  // the placeholder "localhost" value used in local development. Setting a
+  // `domain` that doesn't match the server's actual hostname causes browsers
+  // to silently reject the cookie entirely.
+  if (process.env.DOMAIN && process.env.DOMAIN !== "localhost") {
+    options.domain = process.env.DOMAIN;
+  }
+  return options;
+}
+
+async function setAccessToken(res, user) {
+  const cookieOptions = buildAuthCookieOptions(1000 * 60 * 60 * 24 * 1); // 1 day
   res.cookie(
     "accessToken",
     await generateToken(user, "1d", process.env.ACCESS_TOKEN_SECRET_KEY),
-    cookieOptions
+    cookieOptions,
   );
 }
 
 async function setRefreshToken(res, user) {
-  const cookieOptions = {
-    maxAge: 1000 * 60 * 60 * 24 * 365, // would expire after 1 year
-    httpOnly: true, // The cookie only accessible by the web server
-    signed: true, // Indicates if the cookie should be signed
-    sameSite: "Lax",
-    secure: process.env.NODE_ENV === "development" ? false : true,
-    domain: process.env.DOMAIN,
-  };
+  const cookieOptions = buildAuthCookieOptions(1000 * 60 * 60 * 24 * 365); // 1 year
   res.cookie(
     "refreshToken",
     await generateToken(user, "1y", process.env.REFRESH_TOKEN_SECRET_KEY),
-    cookieOptions
+    cookieOptions,
   );
 }
 
@@ -73,7 +82,7 @@ function generateToken(user, expiresIn, secret) {
       (err, token) => {
         if (err) reject(createError.InternalServerError("خطای سروری"));
         resolve(token);
-      }
+      },
     );
   });
 }
@@ -84,7 +93,7 @@ function verifyRefreshToken(req) {
   }
   const token = cookieParser.signedCookie(
     refreshToken,
-    process.env.COOKIE_PARSER_SECRET_KEY
+    process.env.COOKIE_PARSER_SECRET_KEY,
   );
   return new Promise((resolve, reject) => {
     JWT.verify(
@@ -105,7 +114,7 @@ function verifyRefreshToken(req) {
         } catch (error) {
           reject(createError.Unauthorized("حساب کاربری یافت نشد"));
         }
-      }
+      },
     );
   });
 }
@@ -158,15 +167,11 @@ async function getUserCartDetail(userId) {
             body: function (productDetail, products) {
               return productDetail.map(function (product) {
                 const quantity = products.find(
-                  (item) => item.productId.valueOf() == product._id.valueOf()
+                  (item) => item.productId.valueOf() == product._id.valueOf(),
                 ).quantity;
-                // const totalPrice = count * product.price;
                 return {
                   ...product,
                   quantity,
-                  // totalPrice,
-                  // finalPrice:
-                  //   totalPrice - (product.discount / 100) * totalPrice,
                 };
               });
             },
@@ -204,7 +209,7 @@ async function getUserCartDetail(userId) {
                     return {
                       ...product,
                       offPrice: parseInt(
-                        product.price * (1 - coupon.amount / 100)
+                        product.price * (1 - coupon.amount / 100),
                       ),
                     };
                   }
@@ -237,7 +242,7 @@ async function getUserCartDetail(userId) {
                 return (
                   total +
                   parseInt(
-                    (product.price - product.offPrice) * product.quantity
+                    (product.price - product.offPrice) * product.quantity,
                   )
                 );
               }, 0);
@@ -249,13 +254,13 @@ async function getUserCartDetail(userId) {
                 });
               });
               const productIds = productDetail.map((product) =>
-                product._id.valueOf()
+                product._id.valueOf(),
               );
               const description = `${productDetail
                 .map((p) => p.title)
                 .join(" - ")} | ${userName}`;
               return {
-                totalOffAmount, // including discount and coupon
+                totalOffAmount,
                 totalPrice,
                 totalGrossPrice,
                 orderItems,
@@ -289,7 +294,6 @@ function copyObject(object) {
   return JSON.parse(JSON.stringify(object));
 }
 function deleteInvalidPropertyInObject(data = {}, blackListFields = []) {
-  // let nullishData = ["", " ", "0", 0, null, undefined];
   let nullishData = ["", " ", null, undefined];
   Object.keys(data).forEach((key) => {
     if (blackListFields.includes(key)) delete data[key];
@@ -322,6 +326,7 @@ module.exports = {
   setAccessToken,
   setRefreshToken,
   verifyRefreshToken,
+  buildAuthCookieOptions,
   getUserCartDetail,
   copyObject,
   deleteInvalidPropertyInObject,

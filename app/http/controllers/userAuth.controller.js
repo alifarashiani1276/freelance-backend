@@ -5,6 +5,7 @@ const {
   setAccessToken,
   setRefreshToken,
   verifyRefreshToken,
+  buildAuthCookieOptions,
 } = require("../../../utils/functions");
 const createError = require("http-errors");
 const { UserModel } = require("../../models/user");
@@ -98,7 +99,6 @@ class userAuthController extends Controller {
     return await UserModel.create({
       phoneNumber,
       otp,
-      // role: ROLES.USER,
     });
   }
   async checkUserExist(phoneNumber) {
@@ -142,7 +142,6 @@ class userAuthController extends Controller {
             },
           });
 
-        // پیام واقعی کاوه‌نگار (اگه وجود داشته باشه) رو هم به فرانت می‌فرستیم
         const kavenegarMessage =
           response?.return?.message || response?.message || null;
 
@@ -175,7 +174,6 @@ class userAuthController extends Controller {
       { $set: { name, email, isActive: true, role } },
       { new: true },
     );
-    // await setAuthCookie(res, updatedUser);
     await setAccessToken(res, updatedUser);
     await setRefreshToken(res, updatedUser);
 
@@ -232,14 +230,9 @@ class userAuthController extends Controller {
   }
   logout(req, res) {
     const cookieOptions = {
-      maxAge: 1,
-      expires: Date.now(),
-      httpOnly: true,
-      signed: true,
-      sameSite: "Lax",
-      secure: true,
+      ...buildAuthCookieOptions(1),
+      expires: new Date(0),
       path: "/",
-      domain: process.env.DOMAIN,
     };
     res.cookie("accessToken", null, cookieOptions);
     res.cookie("refreshToken", null, cookieOptions);
