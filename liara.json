@@ -1,5 +1,8 @@
 {
   "platform": "node",
   "app": "finalapp-api",
-  "port": 5000
+  "port": 5000,
+  "build": {
+    "location": "germany"
+  }
 }
