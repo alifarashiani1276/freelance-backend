@@ -1,6 +1,6 @@
 const createError = require("http-errors");
 const Joi = require("joi");
-const { MongoIDPattern } = require("../../../utils/constants");
+const { IdPattern } = require("../../../utils/constants");
 
 const addProposalSchema = Joi.object({
   description: Joi.string()
@@ -12,9 +12,9 @@ const addProposalSchema = Joi.object({
   duration: Joi.number()
     .required()
     .error(createError.BadRequest(" زمان انجام پروژه را وارد کنید")),
-  projectId: Joi.string()
+  projectId: Joi.alternatives()
+    .try(Joi.number().integer().positive(), Joi.string().regex(IdPattern))
     .required()
-    .regex(MongoIDPattern)
     .error(createError.BadRequest("شناسه پروژه وارد شده صحیح نمیباشد")),
 });
 

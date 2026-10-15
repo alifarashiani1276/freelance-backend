@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon index.js",
-    "start": "node index.js"
+    "start": "node index.js",
+    "seed:admin": "node seed-admin.js",
+    "seed:categories": "node seed-categories.js"
   },
   "keywords": [],
   "author": "",
@@ -24,7 +26,8 @@
     "jsonwebtoken": "^9.0.3",
     "kavenegar": "^1.1.4",
     "moment-jalali": "^0.3.9",
-    "mongoose": "^7.1.0"
+    "mysql2": "^3.11.0",
+    "sequelize": "^6.37.3"
   },
   "devDependencies": {
     "nodemon": "^2.0.22"

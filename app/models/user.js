@@ -1,52 +1,65 @@
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const { DataTypes } = require("sequelize");
+const { sequelize } = require("../config/database");
 
-const UserSchema = new mongoose.Schema(
+const UserModel = sequelize.define(
+  "User",
   {
-    name: { type: String, trim: true },
-    avatar: { type: String },
-    biography: { type: String, default: null },
-    email: { type: String, lowercase: true, trim: true },
-    phoneNumber: { type: String, trim: true },
-    password: { type: String },
-    otp: {
-      code: { type: Number, defaul: 0 },
-      expiresIn: { type: Date, default: 0 },
+    id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+    // سازگاری با فرانت: همان فیلد _id قبلی مونگو
+    _id: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        return this.getDataValue("id");
+      },
     },
-    resetLink: { type: String, default: null },
-    isVerifiedPhoneNumber: { type: Boolean, default: false },
-    isActive: { type: Boolean, default: false },
-    status: { type: Number, required: true, default: 1, enum: [0, 1, 2] }, // 0, 1, 2
-    role: { type: String, default: "OWNER" }, // default role is OWNER
+    name: { type: DataTypes.STRING(100), allowNull: true },
+    avatar: { type: DataTypes.STRING(255), allowNull: true },
+    biography: { type: DataTypes.STRING(255), allowNull: true, defaultValue: null },
+    email: {
+      type: DataTypes.STRING(150),
+      allowNull: true,
+      unique: true,
+      set(v) {
+        this.setDataValue("email", v ? String(v).trim().toLowerCase() : null);
+      },
+    },
+    phoneNumber: {
+      type: DataTypes.STRING(20),
+      allowNull: true,
+      unique: true,
+      set(v) {
+        this.setDataValue("phoneNumber", v ? String(v).trim() : null);
+      },
+    },
+    password: { type: DataTypes.STRING(255), allowNull: true },
+    otpCode: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 0 },
+    otpExpiresIn: { type: DataTypes.DATE, allowNull: true },
+    resetLink: { type: DataTypes.STRING(255), allowNull: true, defaultValue: null },
+    isVerifiedPhoneNumber: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    isActive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    status: { type: DataTypes.TINYINT, allowNull: false, defaultValue: 1 }, // 0, 1, 2
+    role: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "OWNER" },
+    avatarUrl: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        const avatar = this.getDataValue("avatar");
+        if (avatar) return `${process.env.SERVER_URL}/${avatar}`;
+        return null;
+      },
+    },
   },
-  {
-    timestamps: true,
-    toJSON: {
-      virtuals: true,
-    },
-  }
+  { tableName: "users" },
 );
 
-UserSchema.virtual("avatarUrl").get(function () {
-  if (this.avatar) return `${process.env.SERVER_URL}/${this.avatar}`;
-  return null;
-});
-
-UserSchema.methods.toJSON = function () {
-  const obj = this.toObject();
-  obj.avatarUrl = this.avatarUrl;
+// هیچ‌وقت password / otp / avatar خام در پاسخ API نمی‌رود
+UserModel.prototype.toJSON = function () {
+  const obj = { ...this.get({ plain: true }) };
   delete obj.password;
   delete obj.avatar;
+  delete obj.otpCode;
+  delete obj.otpExpiresIn;
+  delete obj.resetLink;
   return obj;
 };
 
-UserSchema.index({
-  name: "text",
-  email: "text",
-  phoneNumber: "text",
-  username: "text",
-});
-
-module.exports = {
-  UserModel: mongoose.model("User", UserSchema),
-};
+module.exports = { UserModel };

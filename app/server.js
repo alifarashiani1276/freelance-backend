@@ -3,7 +3,7 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 // const allRoutes = require("./router/router");
 const dotenv = require("dotenv");
-const mongoose = require("mongoose");
+const { sequelize } = require("./models");
 const createError = require("http-errors");
 const path = require("path");
 const { allRoutes } = require("./router/router");
@@ -11,7 +11,6 @@ dotenv.config();
 class Application {
   #app = express();
   #PORT = process.env.PORT || 5000;
-  #DB_URI = process.env.APP_DB;
 
   constructor() {
     this.createServer();
@@ -26,14 +25,18 @@ class Application {
       console.log(`listening on port ${this.#PORT}`)
     );
   }
-  connectToDB() {
-    mongoose
-      .connect(this.#DB_URI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-      })
-      .then((res) => console.log("MongoDB connected!!"))
-      .catch((err) => console.log("Failed to connect to MongoDB", err));
+  async connectToDB() {
+    try {
+      await sequelize.authenticate();
+      console.log("MySQL connected!!");
+      // ساخت جدول‌ها اگر وجود نداشته باشند (جدول موجود را تغییر نمی‌دهد)
+      if (process.env.DB_SYNC !== "false") {
+        await sequelize.sync();
+        console.log("MySQL tables are ready");
+      }
+    } catch (err) {
+      console.log("Failed to connect to MySQL", err);
+    }
   }
   configServer() {
     this.#app.use(
@@ -55,8 +58,12 @@ class Application {
     });
     this.#app.use((error, req, res, next) => {
       const serverError = createError.InternalServerError();
-      const statusCode = error.status || serverError.status;
-      const message = error.message || serverError.message;
+      let statusCode = error.status || serverError.status;
+      let message = error.message || serverError.message;
+      if (error.name === "SequelizeUniqueConstraintError") {
+        statusCode = 400;
+        message = "این مقدار قبلا ثبت شده است";
+      }
       return res.status(statusCode).json({
         statusCode,
         message,

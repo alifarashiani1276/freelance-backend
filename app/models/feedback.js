@@ -1,28 +1,29 @@
-const mongoose = require("mongoose");
+const { DataTypes } = require("sequelize");
+const { sequelize } = require("../config/database");
 
-const FeedbackSchema = new mongoose.Schema(
+const FeedbackModel = sequelize.define(
+  "Feedback",
   {
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
+    id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+    _id: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        return this.getDataValue("id");
+      },
     },
-    name: { type: String },
-    phoneNumber: { type: String },
-    message: { type: String, required: true },
-    adminReply: { type: String, default: null },
-    repliedAt: { type: Date, default: null },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, defaultValue: null },
+    name: { type: DataTypes.STRING(100), allowNull: true },
+    phoneNumber: { type: DataTypes.STRING(20), allowNull: true },
+    message: { type: DataTypes.TEXT, allowNull: false },
+    adminReply: { type: DataTypes.TEXT, allowNull: true, defaultValue: null },
+    repliedAt: { type: DataTypes.DATE, allowNull: true, defaultValue: null },
     status: {
-      type: String,
-      enum: ["PENDING", "ANSWERED"],
-      default: "PENDING",
+      type: DataTypes.ENUM("PENDING", "ANSWERED"),
+      allowNull: false,
+      defaultValue: "PENDING",
     },
   },
-  {
-    timestamps: true,
-  },
+  { tableName: "feedbacks" },
 );
 
-module.exports = {
-  FeedbackModel: mongoose.model("Feedback", FeedbackSchema),
-};
+module.exports = { FeedbackModel };

@@ -1,7 +1,7 @@
 const createHttpError = require("http-errors");
 const Controller = require("../controller");
 const { StatusCodes: HttpStatus } = require("http-status-codes");
-const { FeedbackModel } = require("../../../models/feedback");
+const { FeedbackModel, UserModel } = require("../../../models");
 const {
   replyFeedbackSchema,
 } = require("../../validators/feedback.schema");
@@ -12,20 +12,26 @@ class FeedbackController extends Controller {
   // دریافت لیست همه‌ی نظرات کاربران برای پنل ادمین
   async getAllFeedbacks(req, res) {
     let { page, limit, status } = req.query;
-    page = page || 1;
-    limit = limit || 20;
-    const skip = (page - 1) * limit;
+    page = Math.max(Number(page) || 1, 1);
+    limit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    const offset = (page - 1) * limit;
 
-    const databaseQuery = {};
-    if (status) databaseQuery.status = status;
+    const where = {};
+    if (status) where.status = status;
 
-    const feedbacks = await FeedbackModel.find(databaseQuery)
-      .populate("user", "name email phoneNumber role")
-      .limit(limit)
-      .skip(skip)
-      .sort({ createdAt: -1 });
-
-    const total = await FeedbackModel.countDocuments(databaseQuery);
+    const { rows: feedbacks, count: total } = await FeedbackModel.findAndCountAll({
+      where,
+      include: [
+        {
+          model: UserModel,
+          as: "user",
+          attributes: ["id", "_id", "name", "email", "phoneNumber", "role"],
+        },
+      ],
+      limit,
+      offset,
+      order: [["createdAt", "DESC"]],
+    });
 
     return res.status(HttpStatus.OK).json({
       statusCode: HttpStatus.OK,
@@ -42,22 +48,16 @@ class FeedbackController extends Controller {
     const { feedbackId } = req.params;
     const { adminReply } = req.body;
 
-    const updateResult = await FeedbackModel.updateOne(
-      { _id: feedbackId },
-      {
-        $set: {
-          adminReply,
-          repliedAt: new Date(),
-          status: "ANSWERED",
-        },
-      },
-    );
+    const feedback = /^[1-9]\d*$/.test(String(feedbackId))
+      ? await FeedbackModel.findByPk(feedbackId)
+      : null;
+    if (!feedback) throw createHttpError.NotFound("نظر مورد نظر یافت نشد");
 
-    if (updateResult.matchedCount === 0)
-      throw createHttpError.NotFound("نظر مورد نظر یافت نشد");
-
-    if (updateResult.modifiedCount === 0)
-      throw createHttpError.InternalServerError("پاسخ ثبت نشد");
+    await feedback.update({
+      adminReply,
+      repliedAt: new Date(),
+      status: "ANSWERED",
+    });
 
     return res.status(HttpStatus.OK).json({
       statusCode: HttpStatus.OK,
@@ -70,4 +70,4 @@ class FeedbackController extends Controller {
 
 module.exports = {
   FeedbackController: new FeedbackController(),
-};
+};

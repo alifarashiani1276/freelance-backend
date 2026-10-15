@@ -1,24 +1,31 @@
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const { DataTypes } = require("sequelize");
+const { sequelize } = require("../config/database");
 
-const ProposalSchema = new mongoose.Schema(
+const ProposalModel = sequelize.define(
+  "Proposal",
   {
-    price: { type: Number, required: true },
-    duration: { type: Number, required: true },
-    description: { type: String, required: true },
-    user: { type: ObjectId, ref: "User", required: true },
-    status: {
-      type: Number,
-      required: true,
-      default: 1,
-      enum: [0, 1, 2],
+    id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+    _id: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        return this.getDataValue("id");
+      },
     },
+    price: {
+      type: DataTypes.BIGINT,
+      allowNull: false,
+      get() {
+        const v = this.getDataValue("price");
+        return v === null || v === undefined ? v : Number(v);
+      },
+    },
+    duration: { type: DataTypes.INTEGER, allowNull: false },
+    description: { type: DataTypes.TEXT, allowNull: false },
+    userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    projectId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    status: { type: DataTypes.TINYINT, allowNull: false, defaultValue: 1 }, // 0, 1, 2
   },
-  {
-    timestamps: true,
-  }
+  { tableName: "proposals" },
 );
 
-module.exports = {
-  ProposalModel: mongoose.model("Proposal", ProposalSchema),
-};
+module.exports = { ProposalModel };

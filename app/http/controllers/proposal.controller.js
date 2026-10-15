@@ -1,12 +1,9 @@
 const Controller = require("./controller");
 const { StatusCodes: HttpStatus } = require("http-status-codes");
-const mongoose = require("mongoose");
 const createHttpError = require("http-errors");
-const { ProposalModel } = require("../../models/proposal");
 const { addProposalSchema } = require("../validators/proposal.schema");
-const { ProjectModel } = require("../../models/project");
-const { copyObject } = require("../../../utils/functions");
-const { ROLES } = require("../../../utils/constants");
+const { ProposalModel, ProjectModel } = require("../../models");
+const { ROLES, IdPattern } = require("../../../utils/constants");
 
 class ProposalController extends Controller {
   async addNewProposal(req, res) {
@@ -14,16 +11,16 @@ class ProposalController extends Controller {
     await addProposalSchema.validateAsync(req.body);
     const { description, price, duration, projectId } = req.body;
 
+    const project = await ProjectModel.findByPk(projectId);
+    if (!project) throw createHttpError.NotFound("پروژه یافت نشد.");
+
     const proposal = await ProposalModel.create({
       description,
       price,
       duration,
-      user: userId,
+      userId,
+      projectId: project.id,
     });
-    await ProjectModel.updateOne(
-      { _id: projectId },
-      { $push: { proposals: proposal._id } }
-    );
     if (!proposal?._id)
       throw createHttpError.InternalServerError("پیشنهاد ثبت نشد");
 
@@ -35,23 +32,18 @@ class ProposalController extends Controller {
     });
   }
   async getListOfProposals(req, res) {
-    let dbQuery = {};
+    const where = {};
     const { sort } = req.query;
 
     const user = req.user;
     if (user.role !== ROLES.ADMIN) {
-      dbQuery["user"] = user._id;
+      where.userId = user._id;
     }
 
-    const sortQuery = {};
-
-    if (!sort) sortQuery["createdAt"] = 1;
-    if (sort) {
-      if (sort === "latest") sortQuery["createdAt"] = -1;
-      if (sort === "earliest") sortQuery["createdAt"] = 1;
-    }
-
-    const proposals = await ProposalModel.find(dbQuery).sort(sortQuery);
+    const proposals = await ProposalModel.findAll({
+      where,
+      order: [["createdAt", sort === "latest" ? "DESC" : "ASC"]],
+    });
 
     return res.status(HttpStatus.OK).json({
       statusCode: HttpStatus.OK,
@@ -71,35 +63,28 @@ class ProposalController extends Controller {
     });
   }
   async findProposalById(id) {
-    if (!mongoose.isValidObjectId(id))
+    if (!IdPattern.test(String(id)))
       throw createHttpError.BadRequest("شناسه پروژه ارسال شده صحیح نمیباشد");
-    const proposal = await ProposalModel.findById(id);
+    const proposal = await ProposalModel.findByPk(id);
     if (!proposal) throw createHttpError.NotFound("پروژه یافت نشد.");
     return proposal;
   }
   async changeProposalStatus(req, res) {
     const { id } = req.params;
-    let { status, projectId } = req.body;
+    let { status } = req.body;
     status = Number(status);
 
-    const proposal = await ProposalModel.findOneAndUpdate(
-      { _id: id },
-      { $set: { status } } // 0, 1, 2
-    );
-    if (!proposal)
-      throw createHttpError.InternalServerError(" وضعیت پروپوزال آپدیت نشد");
+    if (![0, 1, 2].includes(status))
+      throw createHttpError.BadRequest("وضعیت ارسال شده صحیح نمیباشد");
 
-    const project = await ProjectModel.findOne({
-      proposals: { $in: [proposal._id] },
-    });
+    const proposal = await this.findProposalById(id);
+    await proposal.update({ status });
 
-    let freelancer = copyObject(proposal).user;
-
-    if (status !== 2) freelancer = null;
-
-    await ProjectModel.updateOne(
-      { _id: project._id },
-      { $set: { freelancer } }
+    // اگر پیشنهاد تایید شد (۲)، فریلنسر پروژه همین کاربر می‌شود؛ در غیر این صورت خالی
+    const freelancerId = status === 2 ? proposal.userId : null;
+    await ProjectModel.update(
+      { freelancerId },
+      { where: { id: proposal.projectId } },
     );
 
     let message = "وضعیت پروپوزال تایید شد";

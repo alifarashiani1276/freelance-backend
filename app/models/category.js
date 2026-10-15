@@ -1,34 +1,41 @@
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const { DataTypes } = require("sequelize");
+const { sequelize } = require("../config/database");
 
-const CategorySchema = new mongoose.Schema(
+const CategoryModel = sequelize.define(
+  "Category",
   {
-    title: { type: String, required: true, unique: true },
-    englishTitle: { type: String, required: true, unique: true },
-    description: { type: String, required: true, trim: true, lowercase: true },
+    id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+    _id: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        return this.getDataValue("id");
+      },
+    },
+    title: { type: DataTypes.STRING(100), allowNull: false, unique: true },
+    englishTitle: { type: DataTypes.STRING(100), allowNull: false, unique: true },
+    description: {
+      type: DataTypes.STRING(255),
+      allowNull: false,
+      set(v) {
+        this.setDataValue("description", String(v).trim().toLowerCase());
+      },
+    },
     type: {
-      type: String,
-      enum: ["project", "comment", "post","ticket"],
-      default: "project",
-      required: true,
+      type: DataTypes.ENUM("project", "comment", "post", "ticket"),
+      allowNull: false,
+      defaultValue: "project",
     },
-    parentId: {
-      type: ObjectId,
-      ref: "Category",
-      default: null,
-    },
+    parentId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, defaultValue: null },
+    iconSm: { type: DataTypes.STRING(255), allowNull: true, defaultValue: null },
+    iconLg: { type: DataTypes.STRING(255), allowNull: true, defaultValue: null },
     icon: {
-      sm: { type: String, default: null },
-      lg: { type: String, default: null },
+      type: DataTypes.VIRTUAL,
+      get() {
+        return { sm: this.getDataValue("iconSm"), lg: this.getDataValue("iconLg") };
+      },
     },
   },
-  {
-    timestamps: true,
-  }
+  { tableName: "categories" },
 );
 
-CategorySchema.index({ title: "text", englishTitle: "text" });
-
-module.exports = {
-  CategoryModel: mongoose.model("Category", CategorySchema),
-};
+module.exports = { CategoryModel };

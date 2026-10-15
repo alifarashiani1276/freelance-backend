@@ -1,7 +1,7 @@
 const Controller = require("./controller");
 const { StatusCodes: HttpStatus } = require("http-status-codes");
 const createHttpError = require("http-errors");
-const { FeedbackModel } = require("../../models/feedback");
+const { FeedbackModel } = require("../../models");
 const { addFeedbackSchema } = require("../validators/feedback.schema");
 
 class FeedbackController extends Controller {
@@ -14,7 +14,7 @@ class FeedbackController extends Controller {
       name,
       phoneNumber,
       message,
-      user: req.user?._id || null,
+      userId: req.user?._id || null,
     });
 
     if (!feedback?._id)
@@ -32,8 +32,9 @@ class FeedbackController extends Controller {
   async getMyFeedbacks(req, res) {
     const userId = req.user._id;
 
-    const feedbacks = await FeedbackModel.find({ user: userId }).sort({
-      createdAt: -1,
+    const feedbacks = await FeedbackModel.findAll({
+      where: { userId },
+      order: [["createdAt", "DESC"]],
     });
 
     return res.status(HttpStatus.OK).json({

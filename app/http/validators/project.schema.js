@@ -1,6 +1,6 @@
 const createError = require("http-errors");
 const Joi = require("joi");
-const { MongoIDPattern } = require("../../../utils/constants");
+const { IdPattern } = require("../../../utils/constants");
 
 const addProjectSchema = Joi.object({
   title: Joi.string()
@@ -15,9 +15,9 @@ const addProjectSchema = Joi.object({
     .min(0)
     .max(20)
     .error(createError.BadRequest("برچسب ها نمیتواند بیشتر از 20 ایتم باشد")),
-  category: Joi.string()
+  category: Joi.alternatives()
+    .try(Joi.number().integer().positive(), Joi.string().regex(IdPattern))
     .required()
-    .regex(MongoIDPattern)
     .error(createError.BadRequest("دسته بندی مورد نظر  صحیح نمی باشد")),
   budget: Joi.number().error(
     createError.BadRequest("قیمت وارد شده صحیح نمیباشد")

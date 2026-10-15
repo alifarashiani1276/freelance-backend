@@ -2,7 +2,6 @@ const createError = require("http-errors");
 const JWT = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
 const { UserModel } = require("../app/models/user");
-const mongoose = require("mongoose");
 const moment = require("moment-jalali");
 const crypto = require("crypto");
 
@@ -104,10 +103,8 @@ function verifyRefreshToken(req) {
           if (err)
             reject(createError.Unauthorized("لطفا حساب کاربری خود شوید"));
           const { _id } = payload;
-          const user = await UserModel.findById(_id, {
-            password: 0,
-            otp: 0,
-            resetLink: 0,
+          const user = await UserModel.findByPk(_id, {
+            attributes: ["id"],
           });
           if (!user) reject(createError.Unauthorized("حساب کاربری یافت نشد"));
           return resolve(_id);
@@ -119,177 +116,6 @@ function verifyRefreshToken(req) {
   });
 }
 
-async function getUserCartDetail(userId) {
-  const cartDetail = await UserModel.aggregate([
-    {
-      $match: { _id: userId },
-    },
-    {
-      $project: { cart: 1, name: 1 },
-    },
-    {
-      $lookup: {
-        from: "products",
-        localField: "cart.products.productId",
-        foreignField: "_id",
-        as: "productDetail",
-      },
-    },
-    {
-      $lookup: {
-        from: "coupons",
-        localField: "cart.coupon",
-        foreignField: "_id",
-        as: "coupon",
-      },
-    },
-    {
-      $project: {
-        name: 1,
-        coupon: { $arrayElemAt: ["$coupon", 0] },
-        cart: 1,
-        productDetail: {
-          _id: 1,
-          slug: 1,
-          title: 1,
-          icon: 1,
-          discount: 1,
-          price: 1,
-          offPrice: 1,
-          imageLink: 1,
-        },
-      },
-    },
-    {
-      $addFields: {
-        productDetail: {
-          $function: {
-            body: function (productDetail, products) {
-              return productDetail.map(function (product) {
-                const quantity = products.find(
-                  (item) => item.productId.valueOf() == product._id.valueOf(),
-                ).quantity;
-                return {
-                  ...product,
-                  quantity,
-                };
-              });
-            },
-            args: ["$productDetail", "$cart.products"],
-            lang: "js",
-          },
-        },
-      },
-    },
-    {
-      $addFields: {
-        discountDetail: {
-          $function: {
-            body: function discountDetail(productDetail, coupon) {
-              if (!coupon)
-                return { newProductDetail: productDetail, coupon: null };
-              const isExpiredCoupon =
-                coupon.expireDate &&
-                new Date(coupon.expireDate).getTime() < Date.now();
-              const isReachedLimit = coupon.usageCount >= coupon.usageLimit;
-              if (!coupon.isActive || isReachedLimit || isExpiredCoupon)
-                return null;
-
-              const newProductDetail = productDetail.map((product) => {
-                if (product.discount) return product;
-                if (coupon.productIds.find((id) => id.equals(product._id))) {
-                  if (coupon.type === "fixedProduct") {
-                    if (product.price < coupon.amount) return product;
-                    return {
-                      ...product,
-                      offPrice: product.price - coupon.amount,
-                    };
-                  }
-                  if (coupon.type === "percent") {
-                    return {
-                      ...product,
-                      offPrice: parseInt(
-                        product.price * (1 - coupon.amount / 100),
-                      ),
-                    };
-                  }
-                } else return product;
-              });
-
-              return {
-                newProductDetail,
-                coupon: { code: coupon.code, _id: coupon._id },
-              };
-            },
-            args: ["$productDetail", "$coupon"],
-            lang: "js",
-          },
-        },
-      },
-    },
-    {
-      $addFields: {
-        payDetail: {
-          $function: {
-            body: function (productDetail, userName) {
-              const totalPrice = productDetail.reduce((total, product) => {
-                return total + parseInt(product.offPrice * product.quantity);
-              }, 0);
-              const totalGrossPrice = productDetail.reduce((total, product) => {
-                return total + parseInt(product.price * product.quantity);
-              }, 0);
-              const totalOffAmount = productDetail.reduce((total, product) => {
-                return (
-                  total +
-                  parseInt(
-                    (product.price - product.offPrice) * product.quantity,
-                  )
-                );
-              }, 0);
-              const orderItems = [];
-              productDetail.map((product) => {
-                orderItems.push({
-                  price: product.offPrice,
-                  product: product._id,
-                });
-              });
-              const productIds = productDetail.map((product) =>
-                product._id.valueOf(),
-              );
-              const description = `${productDetail
-                .map((p) => p.title)
-                .join(" - ")} | ${userName}`;
-              return {
-                totalOffAmount,
-                totalPrice,
-                totalGrossPrice,
-                orderItems,
-                productIds,
-                description,
-              };
-            },
-            args: ["$discountDetail.newProductDetail", "$name"],
-            lang: "js",
-          },
-        },
-      },
-    },
-    {
-      $set: {
-        productDetail: "$discountDetail.newProductDetail",
-        coupon: "$discountDetail.coupon",
-      },
-    },
-    {
-      $project: {
-        cart: 0,
-        name: 0,
-        discountDetail: 0,
-      },
-    },
-  ]);
-  return copyObject(cartDetail);
-}
 function copyObject(object) {
   return JSON.parse(JSON.stringify(object));
 }
@@ -304,15 +130,6 @@ function deleteInvalidPropertyInObject(data = {}, blackListFields = []) {
     if (nullishData.includes(data[key])) delete data[key];
   });
 }
-async function checkProductExist(id) {
-  const { ProductModel } = require("../app/models/product");
-  if (!mongoose.isValidObjectId(id))
-    throw createError.BadRequest("شناسه محصول ارسال شده صحیح نمیباشد");
-  const product = await ProductModel.findById(id);
-  if (!product) throw createError.NotFound("محصولی یافت نشد");
-  return product;
-}
-
 function invoiceNumberGenerator() {
   return (
     moment().format("jYYYYjMMjDDHHmmssSSS") +
@@ -327,10 +144,8 @@ module.exports = {
   setRefreshToken,
   verifyRefreshToken,
   buildAuthCookieOptions,
-  getUserCartDetail,
   copyObject,
   deleteInvalidPropertyInObject,
-  checkProductExist,
   invoiceNumberGenerator,
   secretKeyGenerator,
 };

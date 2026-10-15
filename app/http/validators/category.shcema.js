@@ -1,6 +1,6 @@
 const Joi = require("joi");
 const createHttpError = require("http-errors");
-const { MongoIDPattern } = require("../../../utils/constants");
+const { IdPattern } = require("../../../utils/constants");
 
 const addCategorySchema = Joi.object({
   title: Joi.string()
@@ -26,9 +26,8 @@ const addCategorySchema = Joi.object({
     .max(100)
     .valid("project", "post", "comment", "ticket")
     .error(createHttpError.BadRequest("نوع دسته بندی صحیح نمی باشد")),
-  parent: Joi.string()
-    .allow("")
-    .pattern(MongoIDPattern)
+  parent: Joi.alternatives()
+    .try(Joi.number().integer().positive(), Joi.string().allow("").pattern(IdPattern))
     .error(createHttpError.BadRequest("شناسه ارسال شده صحیح نمیباشد")),
 });
 
@@ -52,7 +51,7 @@ const updateCategorySchema = Joi.object({
     .required()
     .min(3)
     .max(100)
-    .valid("product", "post", "comment", "ticket")
+    .valid("project", "post", "comment", "ticket")
     .error(createHttpError.BadRequest("نوع دسته بندی صحیح نمی باشد")),
 });
 

@@ -20,9 +20,8 @@ async function verifyAccessToken(req, res, next) {
         try {
           if (err) throw createHttpError.Unauthorized("توکن نامعتبر است");
           const { _id } = payload;
-          const user = await UserModel.findById(_id, {
-            password: 0,
-            otp: 0,
+          const user = await UserModel.findByPk(_id, {
+            attributes: { exclude: ["password", "otpCode", "otpExpiresIn"] },
           });
           if (!user) throw createHttpError.Unauthorized("حساب کاربری یافت نشد");
           req.user = user;
