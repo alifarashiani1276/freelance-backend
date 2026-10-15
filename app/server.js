@@ -22,7 +22,7 @@ class Application {
   }
   createServer() {
     this.#app.listen(this.#PORT, () =>
-      console.log(`listening on port ${this.#PORT}`)
+      console.log(`listening on port ${this.#PORT}`),
     );
   }
   async connectToDB() {
@@ -40,11 +40,10 @@ class Application {
   }
   configServer() {
     this.#app.use(
-      cors({ credentials: true, origin: process.env.ALLOW_CORS_ORIGIN })
+      cors({ credentials: true, origin: process.env.ALLOW_CORS_ORIGIN }),
     );
     this.#app.use(express.json());
     this.#app.use(express.urlencoded({ extended: true }));
-    this.#app.use(express.static(path.join(__dirname, "..")));
   }
   initClientSession() {
     this.#app.use(cookieParser(process.env.COOKIE_PARSER_SECRET_KEY));
